@@ -19,8 +19,6 @@ contract InitialTokenOffering is
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    address public protocolToken;
-
     IERC20 public offeringToken;
 
     uint8 public numberPools;
@@ -59,24 +57,15 @@ contract InitialTokenOffering is
     constructor(
         uint8 _numberPools,
         uint256 _startBlockFromNow, // dependent on blocktime
-        uint256 _endBlockFromNow, // dependent on blocktime
-        address _protocolTokenAddress
+        uint256 _endBlockFromNow // dependent on blocktime
     ) public {
         require(_numberPools > 0, "_numberPools > 0");
-        require(
-            _protocolTokenAddress != address(0),
-            "0x0 _protocolTokenAddress"
-        );
         require(
             _endBlockFromNow > _startBlockFromNow,
             "end block > start block"
         );
 
         numberPools = _numberPools;
-        protocolToken = _protocolTokenAddress;
-
-        // startBlock = block.number + 201600; // 7 days
-        // endBlock = block.number + 403200; // 14 days
 
         startBlock = block.number + _startBlockFromNow;
         endBlock = block.number + _endBlockFromNow;
@@ -421,10 +410,6 @@ contract InitialTokenOffering is
     }
 
     /* =============== ADMIN FUNCTIONS ================ */
-
-    function setProtocolToken(address _token) external onlyManager {
-        protocolToken = _token;
-    }
 
     function setPool(
         uint256 _offeringAmountPool,
