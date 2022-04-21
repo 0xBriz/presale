@@ -44,5 +44,5 @@ interface ITokenOffering {
     function viewUserOfferingAndRefundingAmountsForPools(
         address _user,
         uint8[] calldata _pids
-    ) external view returns (uint256[3][] memory);
+    ) external view returns (uint256[2][] memory);
 }

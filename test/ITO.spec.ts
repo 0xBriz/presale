@@ -46,8 +46,7 @@ describe("InitialTokenOffering", () => {
     const ito = await InitialTokenOffering.deploy(
       poolCount,
       startBlockDiff,
-      endBlockDiff,
-      mockBUSD.address
+      endBlockDiff
     );
     presale = await ito.deployed();
   }
@@ -63,6 +62,10 @@ describe("InitialTokenOffering", () => {
       await deploy(poolCount, startBlockDiff, endBlockDiff);
       lpToken = mockUST.address;
       await setPool();
+      // approval
+      await mockUST.approve(presale.address, ethers.constants.MaxUint256);
+      // whitelist current user
+      await presale.addToWhitelist([owner.address], 1);
     });
 
     const offeringAmountPool = ethers.utils.parseEther("1000");
@@ -89,13 +92,18 @@ describe("InitialTokenOffering", () => {
     }
 
     it("should deposit in a pool", async () => {
-      await presale.addToWhitelist([owner.address], 1);
-      await mockUST.approve(presale.address, ethers.constants.MaxUint256);
       const amount = ethers.utils.parseEther("10");
       await presale.depositPool(amount, poolId);
 
       const pool = await presale.viewPoolInformation(poolId);
       console.log(pool);
+    });
+
+    it("should not allow deposits over the pool limit", async () => {
+      // place above limit
+      await expect(
+        presale.depositPool(limitPerUserInLP.add(1), poolId)
+      ).to.be.revertedWith("");
     });
   });
 });

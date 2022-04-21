@@ -162,12 +162,10 @@ contract InitialTokenOffering is
         // Initialize the variables for offering, refunding user amounts, and tax amount
         uint256 offeringTokenAmount;
         uint256 refundingTokenAmount;
-        uint256 userTaxOverflow;
 
         (
             offeringTokenAmount,
-            refundingTokenAmount,
-            userTaxOverflow
+            refundingTokenAmount
         ) = _calculateOfferingAndRefundingAmountsPool(msg.sender, _pid);
 
         // Transfer these tokens back to the user if quantity > 0
@@ -318,27 +316,21 @@ contract InitialTokenOffering is
     function viewUserOfferingAndRefundingAmountsForPools(
         address _user,
         uint8[] calldata _pids
-    ) external view override returns (uint256[3][] memory) {
-        uint256[3][] memory amountPools = new uint256[3][](_pids.length);
+    ) external view override returns (uint256[2][] memory) {
+        uint256[2][] memory amountPools = new uint256[2][](_pids.length);
 
         for (uint8 i = 0; i < _pids.length; i++) {
             uint256 userOfferingAmountPool;
             uint256 userRefundingAmountPool;
-            uint256 userTaxAmountPool;
 
             if (_poolInformation[_pids[i]].raisingAmountPool > 0) {
                 (
                     userOfferingAmountPool,
-                    userRefundingAmountPool,
-                    userTaxAmountPool
+                    userRefundingAmountPool
                 ) = _calculateOfferingAndRefundingAmountsPool(_user, _pids[i]);
             }
 
-            amountPools[i] = [
-                userOfferingAmountPool,
-                userRefundingAmountPool,
-                userTaxAmountPool
-            ];
+            amountPools[i] = [userOfferingAmountPool, userRefundingAmountPool];
         }
         return amountPools;
     }
@@ -346,18 +338,9 @@ contract InitialTokenOffering is
     function _calculateOfferingAndRefundingAmountsPool(
         address _user,
         uint8 _pid
-    )
-        internal
-        view
-        returns (
-            uint256,
-            uint256,
-            uint256
-        )
-    {
+    ) internal view returns (uint256, uint256) {
         uint256 userOfferingAmount;
         uint256 userRefundingAmount;
-        uint256 taxAmount;
 
         if (
             _poolInformation[_pid].totalAmountPool >
@@ -384,14 +367,13 @@ contract InitialTokenOffering is
             );
         } else {
             userRefundingAmount = 0;
-            taxAmount = 0;
             // _userInfo[_user] / (raisingAmount / offeringAmount)
             userOfferingAmount = _userInfo[_user][_pid]
                 .amountPool
                 .mul(_poolInformation[_pid].offeringAmountPool)
                 .div(_poolInformation[_pid].raisingAmountPool);
         }
-        return (userOfferingAmount, userRefundingAmount, taxAmount);
+        return (userOfferingAmount, userRefundingAmount);
     }
 
     function _getUserAllocationPool(address _user, uint8 _pid)
