@@ -3,19 +3,20 @@ import { ethers } from "hardhat";
 const amesAddy = "0xFD6e577bc642238e1E091432Eec1a9f83fBBe03b";
 const foxAddy = "0xbC4E6A07646c564a333c971DEDaCDbC485fEe5a8";
 const niceAddy = "0xaBcD018b36EA7A16fdB177F85988E156182046Ca";
-const testUsers = [amesAddy, foxAddy, niceAddy];
+const TEST_USERS = [amesAddy, foxAddy, niceAddy];
 
 async function main() {
   const harmonyBlockTime = 2; // seconds
   // const desiredEndTimeInBlocks = 1100; // 1100 blocks should be ~20 minutes on Harmony
   const desiredEndTimeInBlocks = 3300; // 3300 blocks should be ~1 hour on Harmony
 
-  const block = await ethers.provider.getBlock(
-    await ethers.provider.getBlockNumber()
-  );
+  //   const block = await ethers.provider.getBlock(
+  //     await ethers.provider.getBlockNumber()
+  //   );
 
   const poolCount = 25;
-  const startingBlock = block.number + 30; // 30 * harmonyBlockTime = ~1 minute until start time
+  //  const startingBlock = block.number + 30; // 30 * harmonyBlockTime = ~1 minute until start time
+  const startingBlock = 1;
   const endBlock = desiredEndTimeInBlocks;
   const startBlockDiff = 201600; // 7 days
   const endBlockDiff = 403200; // 14 days
@@ -27,16 +28,18 @@ async function main() {
   const ito = await InitialTokenOffering.deploy(
     poolCount,
     startingBlock,
-    endBlock,
+    endBlockDiff,
     aaltoAddress
   );
   await ito.deployed();
 
   console.log("InitialTokenOffering deployed to:", ito.address);
 
-  for (const user of testUsers) {
+  for (const user of TEST_USERS) {
     await ito.setManager(user, true);
   }
+
+  await ito.addToWhitelist(TEST_USERS, 1);
 }
 
 // async function deployMockToken(name: string, symbol: string) {
@@ -55,25 +58,26 @@ async function main() {
 //   }
 // }
 
-async function deployPool() {
+async function deployPools() {
   // UST, BUSD, BNB
-  //   const depositTokens = [
-  //     {
-  //       name: "Moist BNB",
-  //       symbol: "MBNB",
-  //     },
-  //     {
-  //       name: "Moist UST",
-  //       symbol: "MUST",
-  //     },
-  //     {
-  //       name: "Moist BUSD",
-  //       symbol: "MBUSD",
-  //     },
-  //   ];
-  //   for (const token of depositTokens) {
-  //     await deployMockToken(token.name, token.symbol);
-  //   }
+  const depositTokens = [
+    {
+      name: "Moist BNB",
+      symbol: "MBNB",
+      address: "",
+    },
+    {
+      name: "Moist UST",
+      symbol: "MUST",
+      address: "",
+    },
+    {
+      name: "Moist BUSD",
+      symbol: "MBUSD",
+      address: "",
+    },
+  ];
+
   //   const pools = [
   //     // UST, BUSD, BNB
   //   ];
@@ -88,6 +92,10 @@ async function deployPool() {
   //   const hasWhitelist = true;
   //   const isStopDeposit = false;
   //   const hasOverflow = false;
+
+  //  for (const token of depositTokens) {
+  //     await deployMockToken(token.name, token.symbol);
+  //   }
 }
 
 main().catch((error) => {

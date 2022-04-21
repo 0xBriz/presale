@@ -12,14 +12,10 @@ interface ITokenOffering {
         uint256 _offeringAmountPool,
         uint256 _raisingAmountPool,
         uint256 _limitPerUserInLP,
-        uint256 _maxCommitRatio,
-        uint256 _minThoreumToJoin,
         uint8 _pid,
         address _lpToken,
-        bool _hasTax,
         bool _hasWhitelist,
-        bool _isStopDeposit,
-        bool _hasOverflow
+        bool _isStopDeposit
     ) external;
 
     function viewPoolInformation(uint8 _pid)
@@ -29,21 +25,11 @@ interface ITokenOffering {
             uint256 raisingAmountPool,
             uint256 offeringAmountPool,
             uint256 limitPerUserInLP,
-            uint256 maxCommitRatio,
-            uint256 minThoreumToJoin,
             uint256 totalAmountPool,
-            uint256 sumTaxesOverflow,
             address lpToken,
-            bool hasTax,
             bool hasWhitelist,
-            bool isStopDeposit,
-            bool hasOverflow
+            bool isStopDeposit
         );
-
-    function viewPoolTaxRateOverflow(uint8 _pid)
-        external
-        view
-        returns (uint256);
 
     function viewUserInfo(address _user, uint8[] calldata _pids)
         external

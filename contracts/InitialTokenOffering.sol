@@ -39,27 +39,15 @@ contract InitialTokenOffering is
         uint256 raisingAmountPool; // amount of tokens raised for the pool (in LP tokens)
         uint256 offeringAmountPool; // amount of tokens offered for the pool (in offeringTokens)
         uint256 limitPerUserInLP; // limit of tokens per user (if 0, it is ignored)
-        uint256 maxCommitRatio; // max commit base on protocol token holding
-        uint256 minProtocolToJoin; // Can zero these out
         uint256 totalAmountPool; // total amount pool deposited (in LP tokens)
-        uint256 sumTaxesOverflow; // total taxes collected (starts at 0, increases with each harvest if overflow)
         address lpToken; // lp token for this pool
-        bool hasTax; // tax on the overflow (if any, it works with _calculateTaxOverflow)
         bool hasWhitelist; // only for whitelist
         bool isStopDeposit;
-        bool hasOverflow; // Can deposit overflow
     }
 
     struct UserInfo {
         uint256 amountPool; // How many tokens the user has provided for pool
         bool claimedPool; // Whether the user has claimed (default: false) for pool
-    }
-
-    mapping(address => bool) private managers;
-
-    modifier onlyManager() {
-        require(managers[msg.sender] == true, "Not a manager");
-        _;
     }
 
     modifier notContract() {
@@ -78,6 +66,10 @@ contract InitialTokenOffering is
         require(
             _protocolTokenAddress != address(0),
             "0x0 _protocolTokenAddress"
+        );
+        require(
+            _endBlockFromNow > _startBlockFromNow,
+            "end block > start block"
         );
 
         numberPools = _numberPools;
@@ -105,15 +97,8 @@ contract InitialTokenOffering is
         require(_amount > 0, "Cant deposit zero");
 
         PoolCharacteristics memory pool = _poolInformation[_pid];
-
-        // Check if the pool has a limit per user
-        uint256 protocolHolding = IERC20(protocolToken).balanceOf(msg.sender);
         uint256 limitPerUserInLP = pool.limitPerUserInLP;
 
-        require(
-            protocolHolding >= pool.minProtocolToJoin,
-            "Not meet min protocol"
-        );
         require(
             pool.offeringAmountPool > 0 && pool.raisingAmountPool > 0,
             "Pool not set"
@@ -129,8 +114,7 @@ contract InitialTokenOffering is
             "Not in time"
         );
         require(
-            pool.hasOverflow ||
-                pool.totalAmountPool.add(_amount) <= pool.raisingAmountPool,
+            pool.totalAmountPool.add(_amount) <= pool.raisingAmountPool,
             "Pool is full"
         );
 
@@ -151,23 +135,6 @@ contract InitialTokenOffering is
         _userInfo[msg.sender][_pid].amountPool = _userInfo[msg.sender][_pid]
             .amountPool
             .add(increaseAmount);
-
-        if (pool.maxCommitRatio > 0) {
-            uint256 newLimit = protocolHolding.mul(pool.maxCommitRatio).div(
-                10000
-            );
-            if (
-                limitPerUserInLP == 0 ||
-                (newLimit > 0 && newLimit < limitPerUserInLP)
-            ) {
-                limitPerUserInLP = newLimit;
-            }
-
-            require(
-                _userInfo[msg.sender][_pid].amountPool <= limitPerUserInLP,
-                "New amount above user max ratio"
-            );
-        }
 
         if (limitPerUserInLP > 0) {
             // Checks whether the limit has been reached
@@ -213,13 +180,6 @@ contract InitialTokenOffering is
             refundingTokenAmount,
             userTaxOverflow
         ) = _calculateOfferingAndRefundingAmountsPool(msg.sender, _pid);
-
-        // Increment the sumTaxesOverflow
-        if (userTaxOverflow > 0) {
-            _poolInformation[_pid].sumTaxesOverflow = _poolInformation[_pid]
-                .sumTaxesOverflow
-                .add(userTaxOverflow);
-        }
 
         // Transfer these tokens back to the user if quantity > 0
         if (offeringTokenAmount > 0) {
@@ -321,47 +281,20 @@ contract InitialTokenOffering is
             uint256 raisingAmountPool,
             uint256 offeringAmountPool,
             uint256 limitPerUserInLP,
-            uint256 maxCommitRatio,
-            uint256 minProtocolToJoin,
             uint256 totalAmountPool,
-            uint256 sumTaxesOverflow,
             address lpToken,
-            bool hasTax,
             bool hasWhitelist,
-            bool isStopDeposit,
-            bool hasOverflow
+            bool isStopDeposit
         )
     {
         PoolCharacteristics memory pool = _poolInformation[_pid];
         raisingAmountPool = pool.raisingAmountPool;
         offeringAmountPool = pool.offeringAmountPool;
         limitPerUserInLP = pool.limitPerUserInLP;
-        maxCommitRatio = pool.maxCommitRatio;
-        minProtocolToJoin = pool.minProtocolToJoin;
         totalAmountPool = pool.totalAmountPool;
-        sumTaxesOverflow = pool.sumTaxesOverflow;
         lpToken = pool.lpToken;
-        hasTax = pool.hasTax;
         hasWhitelist = pool.hasWhitelist;
         isStopDeposit = pool.isStopDeposit;
-        hasOverflow = pool.hasOverflow;
-    }
-
-    function viewPoolTaxRateOverflow(uint8 _pid)
-        external
-        view
-        override
-        returns (uint256)
-    {
-        if (!_poolInformation[_pid].hasTax) {
-            return 0;
-        } else {
-            return
-                _calculateTaxOverflow(
-                    _poolInformation[_pid].totalAmountPool,
-                    _poolInformation[_pid].raisingAmountPool
-                );
-        }
     }
 
     function viewUserAllocationPools(address _user, uint8[] calldata _pids)
@@ -460,20 +393,6 @@ contract InitialTokenOffering is
             userRefundingAmount = _userInfo[_user][_pid].amountPool.sub(
                 payAmount
             );
-
-            // Retrieve the tax rate
-            if (_poolInformation[_pid].hasTax) {
-                uint256 taxOverflow = _calculateTaxOverflow(
-                    _poolInformation[_pid].totalAmountPool,
-                    _poolInformation[_pid].raisingAmountPool
-                );
-
-                // Calculate the final taxAmount
-                taxAmount = userRefundingAmount.mul(taxOverflow).div(1e12);
-
-                // Adjust the refunding amount
-                userRefundingAmount = userRefundingAmount.sub(taxAmount);
-            }
         } else {
             userRefundingAmount = 0;
             taxAmount = 0;
@@ -484,25 +403,6 @@ contract InitialTokenOffering is
                 .div(_poolInformation[_pid].raisingAmountPool);
         }
         return (userOfferingAmount, userRefundingAmount, taxAmount);
-    }
-
-    function _calculateTaxOverflow(
-        uint256 _totalAmountPool,
-        uint256 _raisingAmountPool
-    ) internal pure returns (uint256) {
-        uint256 ratioOverflow = _totalAmountPool.div(_raisingAmountPool);
-
-        if (ratioOverflow >= 500) {
-            return 2000000000; // 0.2%
-        } else if (ratioOverflow >= 250) {
-            return 2500000000; // 0.25%
-        } else if (ratioOverflow >= 100) {
-            return 3000000000; // 0.3%
-        } else if (ratioOverflow >= 50) {
-            return 5000000000; // 0.5%
-        } else {
-            return 10000000000; // 1%
-        }
     }
 
     function _getUserAllocationPool(address _user, uint8 _pid)
@@ -522,10 +422,6 @@ contract InitialTokenOffering is
 
     /* =============== ADMIN FUNCTIONS ================ */
 
-    function setManager(address _who, bool value) external onlyManager {
-        managers[_who] = true;
-    }
-
     function setProtocolToken(address _token) external onlyManager {
         protocolToken = _token;
     }
@@ -534,38 +430,29 @@ contract InitialTokenOffering is
         uint256 _offeringAmountPool,
         uint256 _raisingAmountPool,
         uint256 _limitPerUserInLP,
-        uint256 _maxCommitRatio,
-        uint256 _minProtocolToJoin,
         uint8 _pid,
         address _lpToken,
-        bool _hasTax,
         bool _hasWhitelist,
-        bool _isStopDeposit,
-        bool _hasOverflow
+        bool _isStopDeposit
     ) external override onlyManager {
         require(_pid < numberPools, "Pool does not exist");
         require(_lpToken != address(0), "0x0 _lpToken");
 
-        //Dont change offeringAmountPool, raisingAmountPool if pool is exist
+        // Dont change offeringAmountPool, raisingAmountPool if pool is exist
         _poolInformation[_pid].offeringAmountPool = _offeringAmountPool;
         _poolInformation[_pid].raisingAmountPool = _raisingAmountPool;
 
         _poolInformation[_pid].limitPerUserInLP = _limitPerUserInLP;
-        _poolInformation[_pid].maxCommitRatio = _maxCommitRatio;
-        _poolInformation[_pid].minProtocolToJoin = _minProtocolToJoin;
 
         _poolInformation[_pid].lpToken = _lpToken;
-        _poolInformation[_pid].hasTax = _hasTax;
         _poolInformation[_pid].hasWhitelist = _hasWhitelist;
         _poolInformation[_pid].isStopDeposit = _isStopDeposit;
-        _poolInformation[_pid].hasOverflow = _hasOverflow;
 
         emit PoolParametersSet(
             _offeringAmountPool,
             _raisingAmountPool,
             _pid,
             _lpToken,
-            _hasTax,
             _hasWhitelist,
             _isStopDeposit
         );
@@ -660,7 +547,6 @@ contract InitialTokenOffering is
         uint256 raisingAmountPool,
         uint8 pid,
         address lpToken,
-        bool hasTax,
         bool hasWhitelist,
         bool isStopDeposit
     );
