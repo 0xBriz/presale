@@ -7,7 +7,7 @@ const briz = "0x2e86D29cFea7c4f422f7fCCF97986bbBa03e1a7F";
 const TEST_USERS = [briz, amesAddy, foxAddy, niceAddy];
 
 async function main() {
-  const poolCount = 25;
+  const poolCount = 10;
   const aaltoAddress = "0x7B991D38d6aEc50dfE3AAd1472FDd5764D5e3282";
 
   const InitialTokenOffering = await ethers.getContractFactory(
