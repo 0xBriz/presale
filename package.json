@@ -10,7 +10,8 @@
     "format": "npx prettier --write 'contracts/**/*.sol'",
     "deploy:harmony:mainnet": "npx hardhat run  --network harmony_mainnet ./scripts/deploy-harmony.ts",
     "deploy:harmony:test": "npx hardhat run --network harmony_mainnet ./scripts/deploy-test.ts",
-    "deploy:bsc:mainnet": "npx hardhat run  --network bsc_mainnet",
+    "deploy:bsc:mainnet": "npx hardhat run  --network bsc_mainnet ./scripts/deploy.ts",
+    "deploy:bsc:test": "npx hardhat run  --network bsc_mainnet ./scripts/deploy-test.ts",
     "deploy:local": "npx hardhat run  --network hardhat ./scripts/deploy.ts",
     "slither": "slither . --exclude naming-convention"
   },

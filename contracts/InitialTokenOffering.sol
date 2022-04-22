@@ -10,6 +10,8 @@ import "./oz/Math.sol";
 import "./interfaces/ITokenOffering.sol";
 import "./Whitelisted.sol";
 
+import "hardhat/console.sol";
+
 contract InitialTokenOffering is
     ITokenOffering,
     ReentrancyGuard,
@@ -33,7 +35,7 @@ contract InitialTokenOffering is
 
     mapping(uint8 => PoolCharacteristics) private _poolInformation;
 
-    mapping(address => mapping(uint8 => UserInfo)) private _userInfo;
+    mapping(address => mapping(uint8 => UserInfo)) public userInfo;
 
     struct PoolCharacteristics {
         uint256 raisingAmountPool; // amount of tokens raised for the pool (in LP tokens)
@@ -120,14 +122,14 @@ contract InitialTokenOffering is
         require(increaseAmount > 0, "Error amount");
 
         // Update the user status
-        _userInfo[msg.sender][_pid].amountPool = _userInfo[msg.sender][_pid]
+        userInfo[msg.sender][_pid].amountPool = userInfo[msg.sender][_pid]
             .amountPool
             .add(increaseAmount);
 
         if (limitPerUserInLP > 0) {
             // Checks whether the limit has been reached
             require(
-                _userInfo[msg.sender][_pid].amountPool <= limitPerUserInLP,
+                userInfo[msg.sender][_pid].amountPool <= limitPerUserInLP,
                 "New amount above user limit"
             );
         }
@@ -150,13 +152,13 @@ contract InitialTokenOffering is
         require(block.number > endBlock, "Too early to harvest");
         require(_pid < numberPools, "Non valid pool id");
         require(
-            _userInfo[msg.sender][_pid].amountPool > 0,
+            userInfo[msg.sender][_pid].amountPool > 0,
             "Did not participate"
         );
-        require(!_userInfo[msg.sender][_pid].claimedPool, "Has harvested");
+        require(!userInfo[msg.sender][_pid].claimedPool, "Has harvested");
 
         // nonReentrant but still follow practices
-        _userInfo[msg.sender][_pid].claimedPool = true;
+        userInfo[msg.sender][_pid].claimedPool = true;
 
         // Initialize the variables for offering, refunding user amounts
         uint256 offeringTokenAmount;
@@ -174,7 +176,7 @@ contract InitialTokenOffering is
             );
         }
 
-        uint256 usedFund = _userInfo[msg.sender][_pid].amountPool;
+        uint256 usedFund = userInfo[msg.sender][_pid].amountPool;
 
         if (refundingTokenAmount > 0) {
             IERC20(_poolInformation[_pid].lpToken).safeTransfer(
@@ -204,14 +206,14 @@ contract InitialTokenOffering is
         require(isEmergencyRefund, "Not allowed");
         require(_pid < numberPools, "Non valid pool id");
         require(
-            _userInfo[msg.sender][_pid].amountPool > 0,
+            userInfo[msg.sender][_pid].amountPool > 0,
             "Did not participate"
         );
-        require(!_userInfo[msg.sender][_pid].claimedPool, "Has harvested");
+        require(!userInfo[msg.sender][_pid].claimedPool, "Has harvested");
 
-        _userInfo[msg.sender][_pid].claimedPool = true;
+        userInfo[msg.sender][_pid].claimedPool = true;
 
-        uint256 userFund = _userInfo[msg.sender][_pid].amountPool;
+        uint256 userFund = userInfo[msg.sender][_pid].amountPool;
 
         IERC20(_poolInformation[_pid].lpToken).safeTransfer(
             address(msg.sender),
@@ -257,22 +259,6 @@ contract InitialTokenOffering is
             allocationPools[i] = _getUserAllocationPool(_user, _pids[i]);
         }
         return allocationPools;
-    }
-
-    function viewUserInfo(address _user, uint8[] calldata _pids)
-        external
-        view
-        override
-        returns (uint256[] memory, bool[] memory)
-    {
-        uint256[] memory amountPools = new uint256[](_pids.length);
-        bool[] memory statusPools = new bool[](_pids.length);
-
-        for (uint8 i = 0; i < numberPools; i++) {
-            amountPools[i] = _userInfo[_user][i].amountPool;
-            statusPools[i] = _userInfo[_user][i].claimedPool;
-        }
-        return (amountPools, statusPools);
     }
 
     function viewUserOfferingAndRefundingAmountsForPools(
@@ -324,13 +310,13 @@ contract InitialTokenOffering is
                 .div(1e12);
 
             // Calculate the pre-tax refunding amount
-            userRefundingAmount = _userInfo[_user][_pid].amountPool.sub(
+            userRefundingAmount = userInfo[_user][_pid].amountPool.sub(
                 payAmount
             );
         } else {
             userRefundingAmount = 0;
-            // _userInfo[_user] / (raisingAmount / offeringAmount)
-            userOfferingAmount = _userInfo[_user][_pid]
+            // userInfo[_user] / (raisingAmount / offeringAmount)
+            userOfferingAmount = userInfo[_user][_pid]
                 .amountPool
                 .mul(_poolInformation[_pid].offeringAmountPool)
                 .div(_poolInformation[_pid].raisingAmountPool);
@@ -345,7 +331,7 @@ contract InitialTokenOffering is
     {
         if (_poolInformation[_pid].totalAmountPool > 0) {
             return
-                _userInfo[_user][_pid].amountPool.mul(1e18).div(
+                userInfo[_user][_pid].amountPool.mul(1e18).div(
                     _poolInformation[_pid].totalAmountPool.mul(1e6)
                 );
         } else {

@@ -31,11 +31,6 @@ interface ITokenOffering {
             bool isStopDeposit
         );
 
-    function viewUserInfo(address _user, uint8[] calldata _pids)
-        external
-        view
-        returns (uint256[] memory, bool[] memory);
-
     function viewUserAllocationPools(address _user, uint8[] calldata _pids)
         external
         view
