@@ -19,6 +19,8 @@ contract InitialTokenOffering is
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
+    address public treasury;
+
     IERC20 public offeringToken;
 
     uint8 public numberPools;
@@ -54,12 +56,9 @@ contract InitialTokenOffering is
         _;
     }
 
-    constructor(uint8 _numberPools, address _offeringTokenAddress) public {
+    constructor(uint8 _numberPools, address _treasuryAddress) public {
         require(_numberPools > 0, "_numberPools > 0");
-        require(
-            _offeringTokenAddress != address(0),
-            "0x0 _offeringTokenAddress"
-        );
+        require(_treasuryAddress != address(0), "0x0 _treasuryAddress");
 
         numberPools = _numberPools;
 
@@ -68,7 +67,7 @@ contract InitialTokenOffering is
         // End block can updated by admin
         endBlock = block.number + 86400; // ~3 days BSC
 
-        offeringToken = IERC20(_offeringTokenAddress);
+        treasury = _treasuryAddress;
 
         managers[msg.sender] = true;
     }
@@ -407,11 +406,12 @@ contract InitialTokenOffering is
             }
 
             if (amount > 0) {
-                lpToken.safeTransfer(address(msg.sender), amount);
+                // lpToken.safeTransfer(address(msg.sender), amount);
+                lpToken.safeTransfer(treasury, amount);
             }
         }
 
-        emit AdminWithdraw(address(msg.sender));
+        emit AdminWithdraw(treasury);
     }
 
     function emergencyTokenWithdraw(address _token, uint256 _amount)
@@ -481,6 +481,12 @@ contract InitialTokenOffering is
 
     function setOfferingToken(IERC20 _offeringToken) public onlyManager {
         offeringToken = _offeringToken;
+    }
+
+    function setTreasury(address _treasuryAddress) public onlyManager {
+        require(_treasuryAddress != address(0), "0x0 _treasuryAddress");
+
+        treasury = _treasuryAddress;
     }
 
     function setEmergencyRefund() public onlyManager {
