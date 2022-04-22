@@ -3,22 +3,20 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { InitialTokenOffering, MockDepositToken } from "../typechain";
 
-const PROTOCOL_TOKEN = "0x2e86D29cFea7c4f422f7fCCF97986bbBa03e1a7F";
-
 describe("InitialTokenOffering", () => {
   let presale: InitialTokenOffering;
   let owner: SignerWithAddress;
-  let testUser: SignerWithAddress;
   let mockUST: MockDepositToken;
   let mockBUSD: MockDepositToken;
 
   const mintAmountUST = ethers.utils.parseEther("1000");
   const mintAmountBNB = ethers.utils.parseEther("100");
 
+  const offeringToken = mockBUSD;
+
   beforeEach(async () => {
     const signers = await ethers.getSigners();
     owner = signers[0];
-    testUser = signers[1];
   });
 
   async function deployMockTokens() {
@@ -35,31 +33,24 @@ describe("InitialTokenOffering", () => {
     mockBUSD = await BUSD.deployed();
   }
 
-  async function deploy(
-    poolCount: number,
-    startBlockDiff: number,
-    endBlockDiff: number
-  ) {
+  async function deploy(poolCount: number) {
     const InitialTokenOffering = await ethers.getContractFactory(
       "InitialTokenOffering"
     );
     const ito = await InitialTokenOffering.deploy(
       poolCount,
-      startBlockDiff,
-      endBlockDiff
+      offeringToken.address
     );
     presale = await ito.deployed();
   }
 
   const poolCount = 2;
-  const startBlockDiff = 0; // 7 days
-  const endBlockDiff = 403200; // 14 days
 
   describe("Pools", () => {
     let lpToken; // deposit token
     beforeEach(async () => {
       await deployMockTokens();
-      await deploy(poolCount, startBlockDiff, endBlockDiff);
+      await deploy(poolCount);
       lpToken = mockUST.address;
       await setPool();
       // approval
@@ -99,11 +90,21 @@ describe("InitialTokenOffering", () => {
       console.log(pool);
     });
 
-    it("should not allow deposits over the pool limit", async () => {
-      // place above limit
-      await expect(
-        presale.depositPool(limitPerUserInLP.add(1), poolId)
-      ).to.be.revertedWith("");
+    it("should allow pool harvesting", async () => {
+      const balanceBefore = await mockUST.balanceOf(owner.address);
+      console.log(balanceBefore);
+      const amount = ethers.utils.parseEther("100");
+      await presale.depositPool(amount, poolId);
+
+      const balanceAfter = await mockUST.balanceOf(owner.address);
+      console.log(balanceAfter);
+
+      await presale.endSale();
+      // Jump up a block to pass check
+      await ethers.provider.send("hardhat_mine", []);
+      await presale.harvestPool(poolId);
+
+      // User should have offering token amount owed to them
     });
   });
 });

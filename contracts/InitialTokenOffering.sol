@@ -54,21 +54,21 @@ contract InitialTokenOffering is
         _;
     }
 
-    constructor(
-        uint8 _numberPools,
-        uint256 _startBlockFromNow, // dependent on blocktime
-        uint256 _endBlockFromNow // dependent on blocktime
-    ) public {
+    constructor(uint8 _numberPools, address _offeringTokenAddress) public {
         require(_numberPools > 0, "_numberPools > 0");
         require(
-            _endBlockFromNow > _startBlockFromNow,
-            "end block > start block"
+            _offeringTokenAddress != address(0),
+            "0x0 _offeringTokenAddress"
         );
 
         numberPools = _numberPools;
 
-        startBlock = block.number + _startBlockFromNow;
-        endBlock = block.number + _endBlockFromNow;
+        // Start block can be set by admin when ready
+        startBlock = block.number + 28800; // ~1 day BSC
+        // End block can updated by admin
+        endBlock = block.number + 86400; // ~3 days BSC
+
+        offeringToken = IERC20(_offeringTokenAddress);
 
         managers[msg.sender] = true;
     }
@@ -159,7 +159,7 @@ contract InitialTokenOffering is
         // nonReentrant but still follow practices
         _userInfo[msg.sender][_pid].claimedPool = true;
 
-        // Initialize the variables for offering, refunding user amounts, and tax amount
+        // Initialize the variables for offering, refunding user amounts
         uint256 offeringTokenAmount;
         uint256 refundingTokenAmount;
 
@@ -168,7 +168,6 @@ contract InitialTokenOffering is
             refundingTokenAmount
         ) = _calculateOfferingAndRefundingAmountsPool(msg.sender, _pid);
 
-        // Transfer these tokens back to the user if quantity > 0
         if (offeringTokenAmount > 0) {
             offeringToken.safeTransfer(
                 address(msg.sender),
@@ -194,6 +193,9 @@ contract InitialTokenOffering is
         );
     }
 
+    /**
+     * @dev Allows user to take back there deposits if `isEmergencyRefund` has been set by admins
+     */
     function emergencyRefund(uint8 _pid)
         external
         override
@@ -217,45 +219,6 @@ contract InitialTokenOffering is
             userFund
         );
         emit EmergencyRefund(msg.sender, userFund, _pid);
-    }
-
-    function finalWithdraw() external onlyManager {
-        for (uint8 i = 0; i < numberPools; i++) {
-            IERC20 lpToken = IERC20(_poolInformation[i].lpToken);
-
-            uint256 amount = lpToken.balanceOf(address(this));
-
-            uint256 canWithdraw = Math.min(
-                _poolInformation[i].totalAmountPool,
-                _poolInformation[i].raisingAmountPool
-            );
-
-            if (amount > canWithdraw) {
-                amount = canWithdraw;
-            }
-
-            if (amount > 0) {
-                lpToken.safeTransfer(address(msg.sender), amount);
-            }
-        }
-
-        emit AdminWithdraw(address(msg.sender));
-    }
-
-    function emergencyTokenWithdraw(address _token, uint256 _amount)
-        external
-        onlyManager
-    {
-        IERC20 token = IERC20(_token);
-
-        uint256 amount = _amount;
-
-        if (amount > token.balanceOf(address(this))) {
-            amount = token.balanceOf(address(this));
-        }
-
-        token.safeTransfer(address(msg.sender), amount);
-        emit EmergencyTokenWithdraw(address(msg.sender), _token, amount);
     }
 
     /* =================== VIEW/HELPERS ===================== */
@@ -347,18 +310,18 @@ contract InitialTokenOffering is
             _poolInformation[_pid].raisingAmountPool
         ) {
             // Calculate allocation for the user
-            uint256 allocation = _getUserAllocationPool(_user, _pid);
+            uint256 usersAllocation = _getUserAllocationPool(_user, _pid);
 
             // Calculate the offering amount for the user based on the offeringAmount for the pool
             userOfferingAmount = _poolInformation[_pid]
                 .offeringAmountPool
-                .mul(allocation)
+                .mul(usersAllocation)
                 .div(1e12);
 
             // Calculate the payAmount
             uint256 payAmount = _poolInformation[_pid]
                 .raisingAmountPool
-                .mul(allocation)
+                .mul(usersAllocation)
                 .div(1e12);
 
             // Calculate the pre-tax refunding amount
@@ -423,6 +386,50 @@ contract InitialTokenOffering is
             _hasWhitelist,
             _isStopDeposit
         );
+    }
+
+    /**
+     * @dev Allows admins to with the deposited LP tokens from the pools
+     */
+    function finalWithdraw() external onlyManager {
+        for (uint8 i = 0; i < numberPools; i++) {
+            IERC20 lpToken = IERC20(_poolInformation[i].lpToken);
+
+            uint256 amount = lpToken.balanceOf(address(this));
+
+            uint256 canWithdraw = Math.min(
+                _poolInformation[i].totalAmountPool,
+                _poolInformation[i].raisingAmountPool
+            );
+
+            if (amount > canWithdraw) {
+                amount = canWithdraw;
+            }
+
+            if (amount > 0) {
+                lpToken.safeTransfer(address(msg.sender), amount);
+            }
+        }
+
+        emit AdminWithdraw(address(msg.sender));
+    }
+
+    function emergencyTokenWithdraw(address _token, uint256 _amount)
+        external
+        onlyManager
+    {
+        IERC20 token = IERC20(_token);
+
+        uint256 amount = _amount;
+        uint256 contractBalance = token.balanceOf(address(this));
+
+        if (amount > contractBalance) {
+            amount = contractBalance;
+        }
+
+        token.safeTransfer(address(msg.sender), amount);
+
+        emit EmergencyTokenWithdraw(address(msg.sender), _token, amount);
     }
 
     function setNumberPools(uint8 _numberPools) external onlyManager {
